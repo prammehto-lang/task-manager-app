@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Offline Task Management App">
+    <meta name="theme-color" content="#1a1a2e">
+    <title>TaskFlow - Auto-Reminder</title>
+    
+    <link rel="manifest" href="manifest.json">
+    <link rel="apple-touch-icon" href="icon-192x192.png">
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar / Header -->
+        <header class="app-header">
+            <div class="logo">
+                <i class="fa-solid fa-bolt"></i>
+                <h1>TaskFlow Pro</h1>
+            </div>
+            <p class="tagline">Offline task routing with automated background reminders.</p>
+            
+            <div class="controls">
+                <button id="notificationBtn" class="btn btn-outline" title="Enable Notifications">
+                    <i class="fa-solid fa-bell"></i> Enable Alerts
+                </button>
+                <button id="exportBtn" class="btn btn-outline" title="Export to CSV">
+                    <i class="fa-solid fa-download"></i> Export
+                </button>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Task Entry Form -->
+            <section class="task-form-section section-glass">
+                <h2><i class="fa-solid fa-plus-circle"></i> Assign New Task</h2>
+                <form id="taskForm">
+                    <div class="form-row">
+                        <div class="form-group full-width">
+                            <label for="taskName">Task Name</label>
+                            <input type="text" id="taskName" name="title" required placeholder="e.g., Q3 Budget Review">
+                        </div>
+                    </div>
+                    
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="taskAssignedTo">Assigned To</label>
+                            <input type="text" id="taskAssignedTo" required placeholder="Employee Name">
+                        </div>
+                        <div class="form-group">
+                            <label for="taskEmployeeMobile">Employee WhatsApp No.</label>
+                            <input type="tel" id="taskEmployeeMobile" required placeholder="e.g. 919876543210 (include country code)">
+                        </div>
+                        <div class="form-group">
+                            <label for="taskEmployeeEmail">Employee Email</label>
+                            <input type="email" id="taskEmployeeEmail" required placeholder="employee@company.com">
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="taskAssignedBy">Assigned By (Manager)</label>
+                            <input type="text" id="taskAssignedBy" required placeholder="Your Name">
+                        </div>
+                         <div class="form-group">
+                            <label for="taskStartDate">Start Date & Time</label>
+                            <input type="datetime-local" id="taskStartDate" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="taskDueDate">Due Date & Time ⏰</label>
+                            <input type="datetime-local" id="taskDueDate" required>
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="taskPriority">Priority</label>
+                            <select id="taskPriority" name="priority" required>
+                                <option value="High">High</option>
+                                <option value="Medium" selected>Medium</option>
+                                <option value="Low">Low</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="taskStatus">Initial Status</label>
+                            <select id="taskStatus" name="status" required>
+                                <option value="Pending" selected>Pending</option>
+                                <option value="In Progress">In Progress</option>
+                                <option value="Completed">Completed</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="taskReminder">Reminder Frequency</label>
+                            <select id="taskReminder" required>
+                                <!-- values in milliseconds -->
+                                <option value="1800000">Every 30 min</option>
+                                <option value="3600000">Every 1 hour</option>
+                                <option value="86400000">Every Day</option>
+                                <!-- Test option for debugging -->
+                                <option value="60000">Test: Every 1 Minute</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group full-width">
+                            <label for="taskRemarks">Remarks</label>
+                            <textarea id="taskRemarks" name="remarks" rows="2" placeholder="Add any relevant instructions..."></textarea>
+                        </div>
+                    </div>
+
+                    <div class="form-actions">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fa-solid fa-paper-plane"></i> Assign & Start Auto-Reminders
+                        </button>
+                    </div>
+                </form>
+            </section>
+
+            <!-- Dashboard / Task List -->
+            <section class="task-list-section section-glass">
+                <div class="list-header">
+                    <h2><i class="fa-solid fa-list-check"></i> Active Assignments</h2>
+                    <div class="filter-controls">
+                        <input type="text" id="searchFilter" placeholder="Search tasks...">
+                        <select id="statusFilter">
+                            <option value="All">All</option>
+                            <option value="Pending">Pending</option>
+                            <option value="In Progress">In Progress</option>
+                            <option value="Completed">Completed</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="task-grid" id="taskGrid">
+                    <!-- Tasks will be injected here via JS -->
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
