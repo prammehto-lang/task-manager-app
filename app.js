@@ -151,6 +151,36 @@ document.getElementById('taskAssignedTo').addEventListener('change', (e) => {
 });
 
 
+// ======= CLIENT SIDE IMAGE COMPRESSION ======= //
+function compressImage(file, maxWidth = 800) {
+    return new Promise((resolve) => {
+        if (!file) return resolve(null);
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = (event) => {
+            const img = new Image();
+            img.src = event.target.result;
+            img.onload = () => {
+                const canvas = document.createElement('canvas');
+                // Only scale down if width > maxWidth
+                let scaleSize = 1;
+                if (img.width > maxWidth) {
+                    scaleSize = maxWidth / img.width;
+                }
+                
+                canvas.width = img.width * scaleSize;
+                canvas.height = img.height * scaleSize;
+                
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                
+                // Extremely efficient compression to bypass 1MB database row limitations safely
+                resolve(canvas.toDataURL('image/jpeg', 0.6));
+            }
+        };
+    });
+}
+
 // ======= 4. CLOUD TASK MANAGEMENT ======= //
 
 taskForm.addEventListener('submit', async (e) => {
@@ -173,12 +203,15 @@ taskForm.addEventListener('submit', async (e) => {
     const status = document.getElementById('taskStatus').value;
     const reminderFreq = parseInt(document.getElementById('taskReminder').value);
     const remarks = document.getElementById('taskRemarks').value.trim();
+    const imageFile = document.getElementById('taskImage').files[0];
 
     try {
+        const imageBase64 = await compressImage(imageFile);
+
         const newTask = {
             title, assignedTo: assignedToName, assignedBy: assignedByName,
             employeeMobile, employeeEmail, startDate, dueDate,
-            priority, status, reminderFreq, remarks,
+            priority, status, reminderFreq, remarks, imageBase64,
             createdAt: new Date().toISOString(),
             lastReminderSent: new Date().getTime(),
             completionTime: null
@@ -239,6 +272,8 @@ function renderTaskDashboard() {
             </div>
 
             <div class="task-card-desc">${escapeHTML(task.remarks) || '<i>No remarks provided</i>'}</div>
+            
+            ${task.imageBase64 ? `<img src="${task.imageBase64}" class="task-image-preview" alt="Task Attachment">` : ''}
 
             <div style="display: flex; gap: 0.5rem; margin-bottom: 0.5rem;">
                 <button class="btn btn-outline" style="padding: 0.3rem 0.6rem; font-size: 0.75rem;" onclick='shareToWhatsApp(${JSON.stringify(task).replace(/'/g, "&apos;")})'>
