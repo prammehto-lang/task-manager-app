@@ -32,7 +32,13 @@
                 <li class="nav-item active" data-view="dashboardView"><i class="fa-solid fa-layer-group"></i> Tasks</li>
                 <li class="nav-item" data-view="calendarView"><i class="fa-regular fa-calendar-days"></i> Calendar</li>
                 <li class="nav-item" data-view="analyticsView"><i class="fa-solid fa-chart-pie"></i> Analytics</li>
-                <li class="nav-item" data-view="teamView"><i class="fa-solid fa-users-gear"></i> Team Admin</li>
+                <li class="nav-item" data-view="teamView" id="navTeamAdmin">
+                    <i class="fa-solid fa-users-gear"></i> Team Admin
+                </li>
+                
+                <li class="nav-item" id="navAdminLogin" onclick="window.toggleAdmin()" style="margin-top: 3rem; border: 1px solid var(--glass-border); justify-content: center;">
+                    <i class="fa-solid fa-lock"></i> <span>Unlock AdminMode</span>
+                </li>
             </ul>
         </nav>
 
@@ -117,9 +123,10 @@
                             </div>
                             <div class="form-group">
                                 <label for="taskReminder">Reminder Frequency</label>
-                                <select id="taskReminder" required>
-                                    <option value="1800000">Every 30 min</option>
-                                    <option value="3600000">Every 1 hour</option>
+                                <select id="taskReminder">
+                                    <option value="0">Stop Reminders (Off)</option>
+                                    <option value="1800000" selected>Every 30 min</option>
+                                    <option value="3600000">Every 1 Hour</option>
                                     <option value="86400000">Every Day</option>
                                     <option value="60000">Test: Every 1 Minute</option>
                                 </select>
@@ -144,7 +151,7 @@
                         </div>
 
                         <div class="form-actions">
-                            <button type="submit" class="btn btn-primary">
+                            <button type="submit" class="btn btn-primary" id="submitTaskBtn">
                                 <i class="fa-solid fa-paper-plane"></i> Assign & Start Auto-Reminders
                             </button>
                         </div>
@@ -215,7 +222,7 @@
                                     <option value="Manager">Manager</option>
                                 </select>
                             </div>
-                            <button type="submit" class="btn btn-primary" style="margin-top: 1rem; width: 100%;">Save Member</button>
+                            <button type="submit" class="btn btn-primary" id="submitTeamBtn" style="margin-top: 1rem; width: 100%;">Save Member</button>
                         </form>
                     </div>
                     

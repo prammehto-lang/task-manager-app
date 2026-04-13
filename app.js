@@ -23,6 +23,48 @@ let analyticsRendered = false;
 let myCalendar = null;
 let statusChart = null;
 let employeeChart = null;
+let editingTeamId = null;
+let editingTaskId = null;
+let isAdmin = localStorage.getItem('taskflow_admin') === 'true';
+
+window.toggleAdmin = function() {
+    if (isAdmin) {
+        localStorage.removeItem('taskflow_admin');
+        isAdmin = false;
+        createToast("Locked: Admin Mode Disabled");
+        checkAdminUI();
+        renderTaskDashboard();
+    } else {
+        const pass = prompt("Enter Admin Password:");
+        if (pass === "admin2026") {
+            localStorage.setItem('taskflow_admin', 'true');
+            isAdmin = true;
+            createToast("Unlocked: Admin Mode Active 🔓");
+            checkAdminUI();
+            renderTaskDashboard();
+        } else if (pass !== null) {
+            alert("Incorrect password!");
+        }
+    }
+};
+
+function checkAdminUI() {
+    const navTeam = document.getElementById('navTeamAdmin');
+    const navLogin = document.getElementById('navAdminLogin');
+    if (!navTeam || !navLogin) return;
+
+    if (isAdmin) {
+        navTeam.style.display = 'flex';
+        navLogin.innerHTML = '<i class="fa-solid fa-unlock"></i> <span>Lock AdminMode</span>';
+    } else {
+        navTeam.style.display = 'none';
+        navLogin.innerHTML = '<i class="fa-solid fa-lock"></i> <span>Unlock AdminMode</span>';
+        if (navTeam.classList.contains('active')) {
+            document.querySelector('.nav-item[data-view="dashboardView"]').click();
+        }
+    }
+}
+document.addEventListener('DOMContentLoaded', checkAdminUI);
 
 // DOM Elements
 const taskForm = document.getElementById('taskForm');
@@ -45,6 +87,9 @@ document.querySelectorAll('.nav-item').forEach(item => {
         // Trigger lazy-load rendering
         if (targetViewId === 'calendarView') renderCalendar();
         if (targetViewId === 'analyticsView') renderAnalytics();
+        
+        // Ensure Admin UI stays in sync when flipping tabs
+        checkAdminUI();
     });
 });
 
@@ -87,12 +132,19 @@ teamForm.addEventListener('submit', async (e) => {
     const role = document.getElementById('teamRole').value;
 
     try {
-        await addDoc(collection(db, "team"), { name, mobile, email, role, addedAt: new Date().toISOString() });
+        if (editingTeamId) {
+            await updateDoc(doc(db, "team", editingTeamId), { name, mobile, email, role, addedAt: new Date().toISOString() });
+            createToast("Team Member Updated");
+            editingTeamId = null;
+            document.getElementById('submitTeamBtn').innerText = "Save Member";
+        } else {
+            await addDoc(collection(db, "team"), { name, mobile, email, role, addedAt: new Date().toISOString() });
+            createToast("Team Member Added");
+        }
         teamForm.reset();
-        createToast("Team Member Added");
     } catch (error) {
-        console.error("Error adding team member: ", error);
-        alert("Make sure your Firestore Database is built and in 'Test Mode'");
+        console.error("Error saving team member: ", error);
+        alert("Error saving! Make sure Database rules allow writes.");
     }
 });
 
@@ -122,9 +174,14 @@ onSnapshot(collection(db, "team"), (snapshot) => {
                     </div>
                 </div>
                 <span class="team-role">${member.role}</span>
-                <button class="btn-danger" style="padding: 0.3rem 0.6rem; border-radius: 4px;" onclick="window.deleteTeam('${member.id}')">
-                    <i class="fa-solid fa-trash"></i>
-                </button>
+                <div style="display: flex; gap: 0.5rem;">
+                    <button class="btn-outline" style="padding: 0.3rem 0.6rem; border-radius: 4px; color: var(--text-primary);" onclick="window.editTeam('${member.id}')">
+                        <i class="fa-solid fa-pencil"></i>
+                    </button>
+                    <button class="btn-danger" style="padding: 0.3rem 0.6rem; border-radius: 4px;" onclick="window.deleteTeam('${member.id}')">
+                        <i class="fa-solid fa-trash"></i>
+                    </button>
+                </div>
             </div>
         `;
 
@@ -136,6 +193,19 @@ onSnapshot(collection(db, "team"), (snapshot) => {
         }
     });
 });
+
+window.editTeam = (id) => {
+    const member = memoryTeam.find(m => m.id === id);
+    if (!member) return;
+    document.getElementById('teamName').value = member.name;
+    document.getElementById('teamMobile').value = member.mobile;
+    document.getElementById('teamEmail').value = member.email;
+    document.getElementById('teamRole').value = member.role;
+    
+    editingTeamId = id;
+    document.getElementById('submitTeamBtn').innerText = "Update Member";
+    window.scrollTo({top: 0, behavior: 'smooth'});
+};
 
 window.deleteTeam = async (id) => {
     if(confirm("Remove team member?")) await deleteDoc(doc(db, "team", id));
@@ -162,7 +232,6 @@ function compressImage(file, maxWidth = 800) {
             img.src = event.target.result;
             img.onload = () => {
                 const canvas = document.createElement('canvas');
-                // Only scale down if width > maxWidth
                 let scaleSize = 1;
                 if (img.width > maxWidth) {
                     scaleSize = maxWidth / img.width;
@@ -173,8 +242,6 @@ function compressImage(file, maxWidth = 800) {
                 
                 const ctx = canvas.getContext('2d');
                 ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-                
-                // Extremely efficient compression to bypass 1MB database row limitations safely
                 resolve(canvas.toDataURL('image/jpeg', 0.6));
             }
         };
@@ -206,25 +273,35 @@ taskForm.addEventListener('submit', async (e) => {
     const imageFile = document.getElementById('taskImage').files[0];
 
     try {
-        const imageBase64 = await compressImage(imageFile);
+        let imageBase64 = null;
+        if (imageFile) {
+            imageBase64 = await compressImage(imageFile);
+        }
 
-        const newTask = {
+        const taskData = {
             title, assignedTo: assignedToName, assignedBy: assignedByName,
             employeeMobile, employeeEmail, startDate, dueDate,
-            priority, status, reminderFreq, remarks, imageBase64,
-            createdAt: new Date().toISOString(),
-            lastReminderSent: new Date().getTime(),
-            completionTime: null
+            priority, status, reminderFreq, remarks,
+            lastReminderSent: new Date().getTime()
         };
-        
-        await addDoc(collection(db, "tasks"), newTask);
+        if (imageBase64) taskData.imageBase64 = imageBase64;
+
+        if (editingTaskId) {
+            await updateDoc(doc(db, "tasks", editingTaskId), taskData);
+            createToast("Task Updated");
+            editingTaskId = null;
+            document.getElementById('submitTaskBtn').innerHTML = `<i class="fa-solid fa-paper-plane"></i> Assign & Start Auto-Reminders`;
+        } else {
+            taskData.createdAt = new Date().toISOString();
+            taskData.completionTime = null;
+            await addDoc(collection(db, "tasks"), taskData);
+            sendAlert(`Assigned to ${assignedToName}`, `Ensure they receive task details.`);
+            if (confirm(`Fire WhatsApp request to ${assignedToName} now?`)) window.shareToWhatsApp(taskData);
+        }
         
         taskForm.reset();
         document.getElementById('taskPriority').value = "Medium";
         document.getElementById('taskStatus').value = "Pending";
-        sendAlert(`Assigned to ${assignedToName}`, `Ensure they receive task details.`);
-        
-        if (confirm(`Fire WhatsApp request to ${assignedToName} now?`)) window.shareToWhatsApp(newTask);
 
     } catch (e) { console.error("Create task failed", e); }
 });
@@ -261,7 +338,12 @@ function renderTaskDashboard() {
                     <span class="task-id">TSK-${task.displayId}</span>
                     <div class="task-card-title">${escapeHTML(task.title)}</div>
                 </div>
-                <button class="btn-icon-task" onclick="window.deleteTask('${task.dbId}')"><i class="fa-solid fa-trash"></i></button>
+                ${isAdmin ? `
+                <div style="display: flex; gap: 0.5rem;">
+                    <button class="btn-icon-task" onclick="window.editTask('${task.dbId}')" title="Edit Task"><i class="fa-solid fa-pencil"></i></button>
+                    <button class="btn-icon-task" onclick="window.deleteTask('${task.dbId}')" title="Delete Task"><i class="fa-solid fa-trash"></i></button>
+                </div>
+                ` : ''}
             </div>
             
             <div class="card-meta">
@@ -279,12 +361,13 @@ function renderTaskDashboard() {
                 <button class="btn btn-outline" style="padding: 0.3rem 0.6rem; font-size: 0.75rem;" onclick='shareToWhatsApp(${JSON.stringify(task).replace(/'/g, "&apos;")})'>
                     <i class="fa-brands fa-whatsapp" style="color: #25D366;"></i> Nudge
                 </button>
+                ${task.reminderFreq === 0 ? `<span style="font-size:0.75rem; color:var(--text-secondary); display:flex; align-items:center;"><i class="fa-solid fa-bell-slash"></i>&nbsp;Off</span>` : ''}
             </div>
 
             ${task.completionTime ? `<div class="completion-time-bar">Closed at: ${new Date(task.completionTime).toLocaleString()}</div>` : ''}
 
             <div class="task-actions">
-                <select class="status-select status-${task.status.replace(' ', '.')}" onchange="window.updateStatus('${task.dbId}', this.value)">
+                <select class="status-select status-${task.status.replace(' ', '.')}" onchange="window.updateStatus('${task.dbId}', this.value)" ${isAdmin ? '' : 'disabled'}>
                     <option value="Pending" ${task.status === 'Pending' ? 'selected' : ''}>Pending</option>
                     <option value="In Progress" ${task.status === 'In Progress' ? 'selected' : ''}>In Progress</option>
                     <option value="Completed" ${task.status === 'Completed' ? 'selected' : ''}>Completed</option>
@@ -295,6 +378,37 @@ function renderTaskDashboard() {
         taskGrid.appendChild(card);
     });
 }
+
+window.editTask = (id) => {
+    const task = memoryTasks.find(t => t.dbId === id);
+    if (!task) return;
+    
+    document.getElementById('taskName').value = task.title;
+    
+    const assignToEl = document.getElementById('taskAssignedTo');
+    Array.from(assignToEl.options).forEach((opt, idx) => { if(opt.text === task.assignedTo) assignToEl.selectedIndex = idx; });
+
+    const assignByEl = document.getElementById('taskAssignedBy');
+    Array.from(assignByEl.options).forEach((opt, idx) => { if(opt.text === task.assignedBy) assignByEl.selectedIndex = idx; });
+
+    document.getElementById('taskEmployeeMobile').value = task.employeeMobile;
+    document.getElementById('taskEmployeeEmail').value = task.employeeEmail;
+    document.getElementById('taskStartDate').value = task.startDate;
+    document.getElementById('taskDueDate').value = task.dueDate;
+    document.getElementById('taskPriority').value = task.priority;
+    document.getElementById('taskStatus').value = task.status;
+    document.getElementById('taskReminder').value = task.reminderFreq;
+    document.getElementById('taskRemarks').value = task.remarks;
+    
+    editingTaskId = id;
+    document.getElementById('submitTaskBtn').innerHTML = `<i class="fa-solid fa-pencil"></i> Update Task Details`;
+    
+    document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+    document.querySelector('.nav-item[data-view="dashboardView"]').classList.add('active');
+    document.querySelectorAll('.view-section').forEach(v => v.classList.remove('active-view'));
+    document.getElementById('dashboardView').classList.add('active-view');
+    window.scrollTo({top: 0, behavior: 'smooth'});
+};
 
 window.updateStatus = async (dbId, newStatus) => {
     const task = memoryTasks.find(t => t.dbId === dbId);
@@ -320,6 +434,7 @@ setInterval(async () => {
     const now = new Date().getTime();
     memoryTasks.forEach(async (task) => {
         if (task.status === "Completed") return; // Halt Logic
+        if (task.reminderFreq === 0) return; // Ignore manually stopped tasks
         
         let shouldUpdate = false;
         let updates = {};
