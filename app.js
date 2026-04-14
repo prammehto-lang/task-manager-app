@@ -72,6 +72,27 @@ const teamForm = document.getElementById('teamForm');
 const taskGrid = document.getElementById('taskGrid');
 const notificationBtn = document.getElementById('notificationBtn');
 
+// ======= 2.5 MOBILE CAMERA CRASH RECOVERY ======= //
+// Android Chrome often kills the browser tab when opening the HD Camera to free up RAM.
+// This auto-saves form text so users don't lose their data after the "Low Memory" reload crash.
+const taskFormFields = ['taskName', 'taskStartDate', 'taskDueDate', 'taskPriority', 'taskStatus', 'taskReminder', 'taskRecurrence', 'taskRemarks'];
+
+function initCrashRecovery() {
+    taskFormFields.forEach(id => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        
+        // Restore drafted text on reload
+        const savedVal = localStorage.getItem(`draft_${id}`);
+        if (savedVal) el.value = savedVal;
+        
+        // Save text as user types
+        el.addEventListener('input', () => localStorage.setItem(`draft_${id}`, el.value));
+        el.addEventListener('change', () => localStorage.setItem(`draft_${id}`, el.value));
+    });
+}
+document.addEventListener('DOMContentLoaded', initCrashRecovery);
+
 // ======= 2. SPA NAVIGATION ======= //
 document.querySelectorAll('.nav-item').forEach(item => {
     item.addEventListener('click', (e) => {
@@ -269,6 +290,7 @@ taskForm.addEventListener('submit', async (e) => {
     const priority = document.getElementById('taskPriority').value;
     const status = document.getElementById('taskStatus').value;
     const reminderFreq = parseInt(document.getElementById('taskReminder').value);
+    const recurrence = document.getElementById('taskRecurrence').value || 'None';
     const remarks = document.getElementById('taskRemarks').value.trim();
     const imageFile = document.getElementById('taskImage').files[0];
 
@@ -281,7 +303,7 @@ taskForm.addEventListener('submit', async (e) => {
         const taskData = {
             title, assignedTo: assignedToName, assignedBy: assignedByName,
             employeeMobile, employeeEmail, startDate, dueDate,
-            priority, status, reminderFreq, remarks,
+            priority, status, reminderFreq, recurrence, remarks,
             lastReminderSent: new Date().getTime()
         };
         if (imageBase64) taskData.imageBase64 = imageBase64;
@@ -302,6 +324,10 @@ taskForm.addEventListener('submit', async (e) => {
         taskForm.reset();
         document.getElementById('taskPriority').value = "Medium";
         document.getElementById('taskStatus').value = "Pending";
+        document.getElementById('taskRecurrence').value = "None";
+        
+        // Clear drafts on successful assignment
+        taskFormFields.forEach(id => localStorage.removeItem(`draft_${id}`));
 
     } catch (e) { console.error("Create task failed", e); }
 });
@@ -323,6 +349,13 @@ function renderTaskDashboard() {
 
     // Sort by latest string
     let sortedTasks = [...memoryTasks].sort((a,b) => new Date(b.createdAt) - new Date(a.createdAt));
+    
+    // Sort logic to push Urgent tasks to the absolute top
+    sortedTasks.sort((a, b) => {
+        if (a.priority === 'Urgent' && b.priority !== 'Urgent') return -1;
+        if (b.priority === 'Urgent' && a.priority !== 'Urgent') return 1;
+        return 0;
+    });
 
     sortedTasks.forEach(task => {
         const card = document.createElement('div');
@@ -398,6 +431,7 @@ window.editTask = (id) => {
     document.getElementById('taskPriority').value = task.priority;
     document.getElementById('taskStatus').value = task.status;
     document.getElementById('taskReminder').value = task.reminderFreq;
+    if (document.getElementById('taskRecurrence')) document.getElementById('taskRecurrence').value = task.recurrence || 'None';
     document.getElementById('taskRemarks').value = task.remarks;
     
     editingTaskId = id;
@@ -418,12 +452,46 @@ window.updateStatus = async (dbId, newStatus) => {
     if (newStatus === 'Completed' && task.status !== 'Completed') {
         updates.completionTime = new Date().toISOString();
         sendAlert(`Task Closed`, `${task.title} finished by ${task.assignedTo}`);
+        
+        if (task.recurrence && task.recurrence !== 'None') {
+            await cloneRecurringTask(task);
+        }
     } else if (newStatus !== 'Completed') {
         updates.completionTime = null;
     }
     
     await updateDoc(doc(db, "tasks", dbId), updates);
 };
+
+async function cloneRecurringTask(task) {
+    const sDate = new Date(task.startDate);
+    const dDate = new Date(task.dueDate);
+    
+    // Offset dates based on pattern
+    if (task.recurrence === 'Daily') {
+        sDate.setDate(sDate.getDate() + 1);
+        dDate.setDate(dDate.getDate() + 1);
+    } else if (task.recurrence === 'Weekly') {
+        sDate.setDate(sDate.getDate() + 7);
+        dDate.setDate(dDate.getDate() + 7);
+    } else if (task.recurrence === 'Monthly') {
+        sDate.setMonth(sDate.getMonth() + 1);
+        dDate.setMonth(dDate.getMonth() + 1);
+    }
+    
+    const newTask = {
+        title: task.title, assignedTo: task.assignedTo, assignedBy: task.assignedBy,
+        employeeMobile: task.employeeMobile, employeeEmail: task.employeeEmail, 
+        startDate: sDate.toISOString().slice(0, 16), dueDate: dDate.toISOString().slice(0, 16),
+        priority: task.priority, status: 'Pending', reminderFreq: task.reminderFreq, 
+        recurrence: task.recurrence, remarks: task.remarks,
+        lastReminderSent: new Date().getTime(), createdAt: new Date().toISOString()
+    };
+    if (task.imageBase64) newTask.imageBase64 = task.imageBase64;
+    
+    await addDoc(collection(db, "tasks"), newTask);
+    sendAlert("Recurring Task Generated", `Next occurrence created for ${task.title}`);
+}
 
 window.deleteTask = async (dbId) => {
     if(confirm("Destroy this record permanently?")) await deleteDoc(doc(db, "tasks", dbId));
