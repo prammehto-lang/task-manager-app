@@ -1,18 +1,19 @@
 {
-  "name": "Warehouse Physical Stock Count App",
-  "short_name": "Stock Count",
-  "start_url": "index.html",
+  "name": "TaskFlow - Offline Task Manager",
+  "short_name": "TaskFlow",
+  "description": "A completely offline Task Management application.",
+  "start_url": "./index.html",
   "display": "standalone",
-  "background_color": "#1976D2",
-  "theme_color": "#1976D2",
+  "background_color": "#0f172a",
+  "theme_color": "#0f172a",
   "icons": [
     {
-      "src": "https://www.google.com/s2/favicons?domain=example.com&sz=192",
+      "src": "icon-192x192.png",
       "sizes": "192x192",
       "type": "image/png"
     },
     {
-      "src": "https://www.google.com/s2/favicons?domain=example.com&sz=512",
+      "src": "icon-512x512.png",
       "sizes": "512x512",
       "type": "image/png"
     }
